@@ -1,0 +1,265 @@
+---
+title: "Global Views on Political Systems"
+output: 
+ flexdashboard::flex_dashboard:
+ orientation: columns
+ vertical_layout: scroll
+ storyboard: true
+ social: menu
+ source: embed
+---
+
+```{r SETUP , message=FALSE , warning=FALSE , include=FALSE}
+# =CONCATENATE("if(!require(" , A1 , ")){install.packages(" , CHAR(34) , A1 , CHAR(34) , ")}" , CHAR(10) , "library(" , A1 , ")")
+
+if(!require(flexdashboard)){install.packages("flexdashboard")}
+library(flexdashboard)
+
+if(!require(readxl)){install.packages("readxl")}
+library(readxl)
+
+if(!require(tidyverse)){install.packages("tidyverse")}
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+
+if(!require(ggtern)){install.packages("ggtern")}
+library(ggtern)
+
+if(!require(ggdendro)){install.packages("ggdendro")}
+library(ggdendro)
+
+if(!require(ape)){install.packages("ape")}
+library(ape)
+
+if(!require(ggimage)){install.packages("ggimage")}
+library(ggimage)
+
+if(!require(pheatmap)){install.packages("pheatmap")}
+library(pheatmap)
+
+if(!require(crosstalk)){install.packages("crosstalk")}
+library(crosstalk)
+
+```
+
+
+```{r Download data , eval=TRUE , message=FALSE , warning=FALSE , include=FALSE}
+
+download.file("http://assets.pewresearch.org/wp-content/uploads/sites/2/2017/10/26184529/Pew-Research-Center_Global-Democracy-Data_2017.10.30.xlsx" , "DATA.xlsx" , mode = 'wb')
+
+PolSys <- c("Direct Democracy" , "Representative Democracy" , "Rule by Strong Leader" , "Rule by Experts" , "Rule by Military")
+POL_SYS <- c("DD" , "RD" , "SL" , "E" , "M")
+
+
+# read data in sheets & append
+DATA <- NULL
+for(i in 4:8) {
+ x <- read_xlsx("DATA.xlsx" , sheet=i , range="A2:G40") %>% rename(Country='..1') %>% select(-'..2') %>% mutate(Political.System=PolSys[i-3] , POL.SYS=POL_SYS[i-3])
+ DATA <- rbind(DATA , x)
+}
+
+Country <- unique(DATA$Country)
+
+# PolSys logos
+download.file("http://assets.pewresearch.org/interactives/global/2017/global-democracy/representative_democracy.png" , "RD.png")
+download.file("http://assets.pewresearch.org/interactives/global/2017/global-democracy/direct_democracy.png" , "DD.png")
+download.file("http://assets.pewresearch.org/interactives/global/2017/global-democracy/experts.png" , "E.png")
+download.file("http://assets.pewresearch.org/interactives/global/2017/global-democracy/strongman.png" , "SL.png")
+download.file("http://assets.pewresearch.org/interactives/global/2017/global-democracy/military.png" , "M.png")
+
+
+```
+
+```{r NEW VARS , message=FALSE , warning=FALSE , include=TRUE}
+
+# Dominant Opinion Index
+DATA <- DATA %>% mutate(DOI=(`Very good` + `Somewhat good` - `Somewhat bad` - `Very bad`) * (100 - `DK/Refused`) / 100) %>%
+ mutate(DOI.r=(DOI + 100) / 2)
+
+
+# DOI by country & system
+DATA.DOI <- DATA %>% select(-c(`Very good` , `Somewhat good` , `Somewhat bad` , `Very bad` , `DK/Refused`))
+names <- c("Country" , "Political.System" , "POL.SYS")
+DATA.DOI[ , names] <- lapply(DATA.DOI[ , names] , factor)
+ # reorder factor levels
+DATA.DOI$Political.System <- factor(DATA.DOI$Political.System , levels(DATA.DOI$Political.System)[c(1 , 2 , 5 , 3 , 4)])
+DATA.DOI$POL.SYS <- factor(DATA.DOI$POL.SYS , levels(DATA.DOI$POL.SYS)[c(1 , 4 , 5 , 2 , 3)])
+
+
+# Share of Preference
+DATA.SoP <- DATA.DOI %>% select(-c(Political.System , DOI)) %>% spread(POL.SYS , DOI.r)
+for(p in POL_SYS) {
+ DATA.SoP[ , paste0("SoP." , p)]=DATA.SoP[ , p]^2 / (DATA.SoP$DD^2 + DATA.SoP$RD^2 + DATA.SoP$SL^2 + DATA.SoP$E^2 + DATA.SoP$M^2)
+}
+#DATA.SoP$ck=rowSums(subset(DATA.SoP , select=SoP.DD : SoP.M)) # check sum of SoP to be 1
+
+# gather DATA (new var w\ responses)
+DATA <- DATA %>% gather(eval , pct , c(`Very good` , `Somewhat good` , `Somewhat bad` , `Very bad` , `DK/Refused`)) %>%
+ select(-c(DOI , DOI.r))
+ # transform char variables in factor
+names <- c("Country" , "Political.System" , "POL.SYS" , "eval")
+DATA[ , names] <- lapply(DATA[ , names] , factor)
+ # reorder factor levels
+DATA$Political.System <- factor(DATA$Political.System , levels(DATA$Political.System)[c(1 , 2 , 5 , 3 , 4)])
+DATA$POL.SYS <- factor(DATA$POL.SYS , levels(DATA$POL.SYS)[c(1 , 4 , 5 , 2 , 3)])
+DATA$eval <- factor(DATA$eval , levels(DATA$eval)[c(5 , 3 , 2 , 4 , 1)])
+
+# KLEAN
+remove(i , x , names)
+
+```
+
+
+
+Evaluation
+===
+
+
+Column
+-----------------------------------------------------------------------
+This is the data presented in **[How countries around the world view democracy , military rule and other political systems](http://www.pewresearch.org/fact-tank/2017/10/30/global-views-political-systems/)**.
+
+It shows the evaluation of the 5 political systems , elicited by the question 
+*would the system be a very good , somewhat good , somewhat bad or very bad way of governing this country?*
+
+ - Direct Democracy ![Direct Democracy](DD.png){width=26px}
+ - Representative Democracy ![Representative Democracy](RD.png){width=26px}
+ - Rule by Strong Leader ![Rule by Strong Leader](SL.png){width=26px}
+ - Rule by Experts (Technocracy) ![Rule by Experts](E.png){width=26px}
+ - Rule by Military ![Rule by Military](M.png){width=26px}
+
+
+Column
+-----------------------------------------------------------------------
+
+```{r}
+
+ggplot(data=DATA , aes(x=Country , y=pct , fill=eval)) + geom_col(position="fill") + coord_flip() + facet_grid(. ~ Political.System) + theme(axis.title.x=element_blank() , axis.text.x=element_blank() , axis.ticks.x=element_blank() , axis.ticks.y=element_blank())
+
+```
+
+
+***
+
+The two tyes of democratic systems (direct and representative) are generally seen as best for running one's country. Notable exceptions : Jordan and Tunisia.
+
+> Vietnamese are the most enthusiastic about technocracy (rule by experts).
+
+
+Dominant Opinion Index
+===
+
+
+Column
+-----------------------------------------------------------------------
+
+$$Dominant\ Opinion\ Index\ (DOI) = \frac{(Positive\ opinions - Negative\ opinions) * (100 - Neutral\ opinions)}{100}$$
+
+***
+
+<span style="color:green">**Positive opinions**</span> : the system is *Very good* or *Somewhat good*
+
+<span style="color:red">**Negative opinions**</span> : the system is *Very bad* or *Somewhat bad*
+
+<span style="color:grey">**Neutral opinions**</span> : *DK/Refused*
+
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### Evaluation
+
+```{r}
+
+ggplot(DATA.DOI , aes(x=Country , y=DOI , label=Political.System)) + 
+ geom_point(stat='identity' , aes(col=Political.System) , size=1.3) + coord_flip() + theme(axis.title.x=element_blank() , axis.ticks.x=element_blank() , axis.ticks.y=element_blank())
+
+```
+
+### Country groups
+
+```{r Clusters DOI , message=FALSE , warning=FALSE}
+
+# W T F ?!?!
+#DATA.DOI %>% select(-c(Political.System , DOI.r)) %>% spread(POL.SYS , DOI) %>% data.frame(row.names = Country) %>%
+# select(-Country) %>% data.matrix %>% heatmap(scale = "column" , col = colorRampPalette(c("red" , "gold" , "darkgreen"))(n = 99) , cexRow = 0.7 , cexCol = 0.7 , margins = c(3 , 3))
+
+DATA.DOI <- DATA.DOI %>%
+ select(-c(Political.System , DOI.r)) %>%
+ spread(POL.SYS , DOI)
+
+data.frame(DD = DATA.DOI$DD , RD = DATA.DOI$RD , E = DATA.DOI$E , SL = DATA.DOI$SL , M = DATA.DOI$M , row.names = DATA.DOI$Country) %>%
+ data.matrix %>%
+ pheatmap(scale = "column" , clustering_method = "ward.D2" , 
+ col = colorRampPalette(c("red" , "gold" , "darkgreen"))(n = 99) , 
+ cexRow = 0.7 , cexCol = 0.7 , margins = c(1 , 1) , cellwidth = 11 , fontsize = 7 , cutree_rows = 4)
+
+```
+
+> Values are rescaled and centered by column
+
+
+
+Share of Preference
+===
+
+Column
+-----------------------------------------------------------------------
+
+$$Share\ of\ Preference_{\ system\ S} = \frac {DOI_{\ system\ S}^2}{\sum_{\ considered\ systems}DOI^2}$$
+
+***
+
+*NOTE : SoP for democratic systems when only 3 types are considered is not the sum of SoP for the case when all 5 types are taken into account.*
+
+
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+
+### Shares of Preference (5 Systems)
+```{r}
+
+DATA.SoP %>% select(Country , contains("SoP")) %>% gather(POL.SYS , SoP , contains("SoP")) %>% 
+ mutate(POL.SYS=as.factor(str_replace(POL.SYS , "SoP." , ""))) %>% mutate(POL.SYS=factor(POL.SYS , levels(POL.SYS)[c(1 , 4 , 5 , 2 , 3)])) %>% ggplot(aes(x=Country , y=SoP , fill=POL.SYS)) + geom_col(position="fill") + coord_flip() + theme(axis.title.x=element_blank() , axis.text.x=element_blank() , axis.ticks.x=element_blank() , axis.ticks.y=element_blank())
+
+```
+
+
+
+
+### Shares of Preference (3 System Types)
+```{r}
+
+DATA.SoP %>% select(-contains("SoP")) %>% mutate(D=(DD + RD) / 2 , A=(SL + M) / 2) %>%
+ mutate(SoP.D=D^2 / (D^2 + A^2 + E^2) , SoP.A=A^2 / (D^2 + A^2 + E^2) , SoP.E=E^2 / (D^2 + A^2 + E^2)) %>%
+ select(Country , contains("SoP")) %>% gather(POL.SYS , SoP , contains("SoP")) %>% 
+ mutate(POL.SYS=as.factor(str_replace(POL.SYS , "SoP." , ""))) %>% ggplot(aes(x=Country , y=SoP , fill=POL.SYS)) + geom_col(position="fill") + coord_flip() + theme(axis.title.x=element_blank() , axis.text.x=element_blank() , axis.ticks.x=element_blank() , axis.ticks.y=element_blank())
+
+```
+
+### Country positions in the ternary Polytical System space
+```{r , message=FALSE , warning=FALSE}
+
+DATA.SoP %>% select(-contains("SoP")) %>% mutate(D=(DD + RD) / 2 , A=(SL + M) / 2) %>%
+ mutate(SoP.D=D^2 / (D^2 + A^2 + E^2) , SoP.A=A^2 / (D^2 + A^2 + E^2) , SoP.E=E^2 / (D^2 + A^2 + E^2)) %>%
+ select(Country , contains("SoP")) %>% ggtern(aes(SoP.A , SoP.D , SoP.E)) + theme_light() + tern_limits(T=1 , L=0.6 , R=0.7) + geom_text(aes(label=Country) , size=1.7) + labs(x="Authoritarianism" , y="Democracy" , z="Technocracy" , title="Global Views on Political Systems")
+
+```
+
+
+### Country groups
+```{r Clusters SoP}
+
+data.frame(DD = DATA.SoP$SoP.DD , RD = DATA.SoP$SoP.RD , E = DATA.SoP$SoP.E , SL = DATA.SoP$SoP.SL , M = DATA.SoP$SoP.M , row.names = DATA.SoP$Country) %>%
+ data.matrix %>%
+ pheatmap(scale = "column" , clustering_method = "ward.D2" , 
+ col = colorRampPalette(c("red" , "lightgrey" , "darkgreen"))(n = 99) , 
+ cexRow = 0.7 , cexCol = 0.7 , margins = c(1 , 1) , cellwidth = 11 , fontsize = 7 , cutree_rows = 4)
+
+```
+
+> Values are rescaled and centered by column
+
